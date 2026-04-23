@@ -87,13 +87,12 @@ pipeline {
         stage('Ansible Configure') {
             steps {
                 echo "Configuring server with Ansible"
+                writeFile file: '/tmp/deploy_key', text: SSH_PRIVATE_KEY
                 sh '''
+                    chmod 600 /tmp/deploy_key
                     SERVER_IP=$(cat /tmp/server_ip.txt)
                     echo "Configuring: $SERVER_IP"
                     sleep 300
-
-                    printf '%s' "$SSH_PRIVATE_KEY" > /tmp/deploy_key
-                    chmod 600 /tmp/deploy_key
 
                     sed "s/SERVER_IP_PLACEHOLDER/$SERVER_IP/" \
                         ansible/inventory.ini > /tmp/inventory.ini
@@ -112,10 +111,10 @@ pipeline {
         stage('Deploy') {
             steps {
                 echo "Deploying to Kubernetes"
+                writeFile file: '/tmp/deploy_key', text: SSH_PRIVATE_KEY
                 sh '''
-                    SERVER_IP=$(cat /tmp/server_ip.txt)
-                    printf '%s' "$SSH_PRIVATE_KEY" > /tmp/deploy_key
                     chmod 600 /tmp/deploy_key
+                    SERVER_IP=$(cat /tmp/server_ip.txt)
 
                     sed "s|IMAGE_PLACEHOLDER|$FULL_IMAGE|g" \
                         k8s/deployment.yaml > /tmp/deployment-actual.yaml
