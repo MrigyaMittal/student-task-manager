@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: task-manager-app
+  labels:
+    app: task-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: task-manager
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: task-manager
+    spec:
+      imagePullSecrets:
+        - name: ecr-secret
+      containers:
+        - name: task-manager
+          image: IMAGE_PLACEHOLDER
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+          env:
+            - name: FLASK_ENV
+              value: "production"
+          volumeMounts:
+            - name: task-data
+              mountPath: /data
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: task-data
+          emptyDir: {}

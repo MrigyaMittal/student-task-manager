@@ -1,0 +1,58 @@
+---
+- name: Configure app server with k3s
+  hosts: app_servers
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - wget
+          - git
+          - unzip
+        state: present
+
+    - name: Install k3s
+      shell: curl -sfL https://get.k3s.io | sh -
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Wait for k3s to be ready
+      wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+        state: present
+        timeout: 180
+
+    - name: Create .kube directory
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Copy kubeconfig for ubuntu user
+      copy:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: /home/ubuntu/.kube/config
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+        remote_src: yes
+
+    - name: Verify cluster is healthy
+      command: kubectl get nodes
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: nodes
+      changed_when: false
+
+    - name: Show node status
+      debug:
+        msg: "{{ nodes.stdout_lines }}"
