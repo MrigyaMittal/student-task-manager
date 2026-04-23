@@ -10,7 +10,6 @@ pipeline {
         ECR_REPO                = 'task-manager'
         IMAGE_TAG               = "build-${BUILD_NUMBER}"
         FULL_IMAGE              = "${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
-        SSH_PRIVATE_KEY         = credentials('ssh-private-key')
         SSH_PUBLIC_KEY          = credentials('ssh-public-key-text')
     }
 
@@ -87,54 +86,48 @@ pipeline {
         stage('Ansible Configure') {
             steps {
                 echo "Configuring server with Ansible"
-                writeFile file: '/tmp/deploy_key', text: SSH_PRIVATE_KEY
-                sh '''
-                    chmod 600 /tmp/deploy_key
-                    SERVER_IP=$(cat /tmp/server_ip.txt)
-                    echo "Configuring: $SERVER_IP"
-                    sleep 300
+                sshagent(['ssh-private-key']) {
+                    sh '''
+                        SERVER_IP=$(cat /tmp/server_ip.txt)
+                        echo "Configuring: $SERVER_IP"
+                        sleep 300
 
-                    sed "s/SERVER_IP_PLACEHOLDER/$SERVER_IP/" \
-                        ansible/inventory.ini > /tmp/inventory.ini
+                        sed "s/SERVER_IP_PLACEHOLDER/$SERVER_IP/" \
+                            ansible/inventory.ini > /tmp/inventory.ini
 
-                    ansible-playbook \
-                        -i /tmp/inventory.ini \
-                        --private-key /tmp/deploy_key \
-                        -v \
-                        ansible/playbook.yml
-
-                    rm /tmp/deploy_key
-                '''
+                        ansible-playbook \
+                            -i /tmp/inventory.ini \
+                            -v \
+                            ansible/playbook.yml
+                    '''
+                }
             }
         }
 
         stage('Deploy') {
             steps {
                 echo "Deploying to Kubernetes"
-                writeFile file: '/tmp/deploy_key', text: SSH_PRIVATE_KEY
-                sh '''
-                    chmod 600 /tmp/deploy_key
-                    SERVER_IP=$(cat /tmp/server_ip.txt)
+                sshagent(['ssh-private-key']) {
+                    sh '''
+                        SERVER_IP=$(cat /tmp/server_ip.txt)
 
-                    sed "s|IMAGE_PLACEHOLDER|$FULL_IMAGE|g" \
-                        k8s/deployment.yaml > /tmp/deployment-actual.yaml
+                        sed "s|IMAGE_PLACEHOLDER|$FULL_IMAGE|g" \
+                            k8s/deployment.yaml > /tmp/deployment-actual.yaml
 
-                    scp -i /tmp/deploy_key \
-                        -o StrictHostKeyChecking=no \
-                        /tmp/deployment-actual.yaml \
-                        k8s/service.yaml \
-                        ubuntu@$SERVER_IP:/tmp/
+                        scp -o StrictHostKeyChecking=no \
+                            /tmp/deployment-actual.yaml \
+                            k8s/service.yaml \
+                            ubuntu@$SERVER_IP:/tmp/
 
-                    ssh -i /tmp/deploy_key \
-                        -o StrictHostKeyChecking=no \
-                        ubuntu@$SERVER_IP "
-                        export KUBECONFIG=/home/ubuntu/.kube/config
-                        kubectl apply -f /tmp/deployment-actual.yaml
-                        kubectl apply -f /tmp/service.yaml
-                        kubectl rollout status deployment/task-manager-app --timeout=120s
-                    "
-                    rm /tmp/deploy_key
-                '''
+                        ssh -o StrictHostKeyChecking=no \
+                            ubuntu@$SERVER_IP "
+                            export KUBECONFIG=/home/ubuntu/.kube/config
+                            kubectl apply -f /tmp/deployment-actual.yaml
+                            kubectl apply -f /tmp/service.yaml
+                            kubectl rollout status deployment/task-manager-app --timeout=120s
+                        "
+                    '''
+                }
             }
         }
 
