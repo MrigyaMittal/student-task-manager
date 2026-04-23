@@ -92,7 +92,7 @@ pipeline {
                     echo "Configuring: $SERVER_IP"
                     sleep 300
 
-                    echo "$SSH_PRIVATE_KEY" > /tmp/deploy_key
+                    printf '%s' "$SSH_PRIVATE_KEY" > /tmp/deploy_key
                     chmod 600 /tmp/deploy_key
 
                     sed "s/SERVER_IP_PLACEHOLDER/$SERVER_IP/" \
@@ -114,7 +114,7 @@ pipeline {
                 echo "Deploying to Kubernetes"
                 sh '''
                     SERVER_IP=$(cat /tmp/server_ip.txt)
-                    echo "$SSH_PRIVATE_KEY" > /tmp/deploy_key
+                    printf '%s' "$SSH_PRIVATE_KEY" > /tmp/deploy_key
                     chmod 600 /tmp/deploy_key
 
                     sed "s|IMAGE_PLACEHOLDER|$FULL_IMAGE|g" \
