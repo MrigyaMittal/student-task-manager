@@ -90,7 +90,7 @@ pipeline {
                 sh '''
                     SERVER_IP=$(cat /tmp/server_ip.txt)
                     echo "Configuring: $SERVER_IP"
-                    sleep 60
+                    sleep 300
 
                     echo "$SSH_PRIVATE_KEY" > /tmp/deploy_key
                     chmod 600 /tmp/deploy_key
