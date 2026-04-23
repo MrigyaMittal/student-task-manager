@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "5001:5000"
+    volumes:
+      - task_data:/data
+    environment:
+      - FLASK_ENV=development
+volumes:
+  task_data:
