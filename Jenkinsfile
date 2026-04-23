@@ -33,7 +33,7 @@ pipeline {
                 echo "Running tests"
                 sh '''
                     python3 -m venv /tmp/test-venv
-                    source /tmp/test-venv/bin/activate
+                    . /tmp/test-venv/bin/activate
                     pip install -r app/requirements.txt pytest
                     python3 -m pytest app/test_app.py -v
                     deactivate
