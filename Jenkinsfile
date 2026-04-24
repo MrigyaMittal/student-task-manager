@@ -90,7 +90,7 @@ pipeline {
                     sh '''
                         SERVER_IP=$(cat /tmp/server_ip.txt)
                         echo "Configuring: $SERVER_IP"
-                        sleep 300
+                        sleep 200
 
                         sed "s/SERVER_IP_PLACEHOLDER/$SERVER_IP/" \
                             ansible/inventory.ini > /tmp/inventory.ini

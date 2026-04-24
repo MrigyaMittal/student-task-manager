@@ -52,6 +52,9 @@
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       register: nodes
       changed_when: false
+      retries: 10
+      delay: 30
+      until: nodes.rc == 0
 
     - name: Show node status
       debug:
