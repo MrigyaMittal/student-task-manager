@@ -122,8 +122,9 @@ pipeline {
                         ssh -o StrictHostKeyChecking=no \
                             ubuntu@$SERVER_IP "
                             export KUBECONFIG=/home/ubuntu/.kube/config
-                            kubectl apply -f /tmp/deployment-actual.yaml
-                            kubectl apply -f /tmp/service.yaml
+                            sleep 30
+                            kubectl apply --validate=false -f /tmp/deployment-actual.yaml
+                            kubectl apply --validate=false -f /tmp/service.yaml
                             kubectl rollout status deployment/task-manager-app --timeout=120s
                         "
                     '''
