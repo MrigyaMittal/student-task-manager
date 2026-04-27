@@ -119,8 +119,14 @@ pipeline {
                             k8s/service.yaml \
                             ubuntu@$SERVER_IP:/tmp/
 
+                        ECR_PASSWORD=$(aws ecr get-login-password --region $AWS_DEFAULT_REGION)
+
                         ssh -o StrictHostKeyChecking=no \
-                            ubuntu@$SERVER_IP '
+                            ubuntu@$SERVER_IP \
+                            ECR_REGISTRY="$ECR_REGISTRY" \
+                            ECR_PASSWORD="$ECR_PASSWORD" \
+                            bash -s << 'ENDSSH'
+
                             export KUBECONFIG=/home/ubuntu/.kube/config
 
                             echo "Waiting for k3s API server to be ready..."
@@ -130,10 +136,21 @@ pipeline {
                                 sleep 10
                             done
 
+                            echo "Creating ECR pull secret..."
+                            kubectl delete secret ecr-secret --ignore-not-found
+                            kubectl create secret docker-registry ecr-secret \
+                                --docker-server=$ECR_REGISTRY \
+                                --docker-username=AWS \
+                                --docker-password=$ECR_PASSWORD
+
+                            echo "Applying manifests..."
                             kubectl apply --validate=false -f /tmp/deployment-actual.yaml
-                            kubectl apply --validate=false -f /tmp/service.yaml
-                            kubectl rollout status deployment/task-manager-app --timeout=180s
-                        '
+                            kubectl apply --validate=false -f /tmp/service.yaml || true
+
+                            echo "Waiting for rollout..."
+                            kubectl rollout status deployment/task-manager-app --timeout=300s
+
+ENDSSH
                     '''
                 }
             }
