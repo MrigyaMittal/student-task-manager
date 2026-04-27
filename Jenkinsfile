@@ -147,6 +147,21 @@ pipeline {
                             kubectl apply --validate=false -f /tmp/deployment-actual.yaml
                             kubectl apply --validate=false -f /tmp/service.yaml || true
 
+                            echo "Waiting 60s for pod to initialize..."
+                            sleep 60
+
+                            echo "=== POD STATUS ==="
+                            kubectl get pods -o wide
+
+                            echo "=== POD DESCRIPTION ==="
+                            kubectl describe pods -l app=task-manager
+
+                            echo "=== POD LOGS ==="
+                            kubectl logs -l app=task-manager --tail=50 || true
+
+                            echo "=== EVENTS ==="
+                            kubectl get events --sort-by=.lastTimestamp | tail -20
+
                             echo "Waiting for rollout..."
                             kubectl rollout status deployment/task-manager-app --timeout=300s
 
