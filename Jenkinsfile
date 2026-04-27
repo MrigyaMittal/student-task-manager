@@ -44,7 +44,7 @@ pipeline {
             steps {
                 echo "Building Docker image: ${FULL_IMAGE}"
                 sh '''
-                    docker build -t $FULL_IMAGE .
+                    docker build --platform linux/amd64 -t $FULL_IMAGE .
                     docker tag $FULL_IMAGE $ECR_REGISTRY/$ECR_REPO:latest
                 '''
             }
