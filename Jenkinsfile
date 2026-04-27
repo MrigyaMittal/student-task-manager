@@ -44,8 +44,7 @@ pipeline {
             steps {
                 echo "Building Docker image: ${FULL_IMAGE}"
                 sh '''
-                    docker buildx create --use --name multiarch --driver docker-container || true
-                    docker buildx build --platform linux/amd64 --output type=docker -t $FULL_IMAGE .
+                    docker build -t $FULL_IMAGE .
                     docker tag $FULL_IMAGE $ECR_REGISTRY/$ECR_REPO:latest
                 '''
             }
