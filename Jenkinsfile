@@ -90,7 +90,7 @@ pipeline {
                     sh '''
                         SERVER_IP=$(cat /tmp/server_ip.txt)
                         echo "Configuring: $SERVER_IP"
-                        sleep 200
+                        sleep 30
 
                         sed "s/SERVER_IP_PLACEHOLDER/$SERVER_IP/" \
                             ansible/inventory.ini > /tmp/inventory.ini
@@ -120,13 +120,20 @@ pipeline {
                             ubuntu@$SERVER_IP:/tmp/
 
                         ssh -o StrictHostKeyChecking=no \
-                            ubuntu@$SERVER_IP "
+                            ubuntu@$SERVER_IP '
                             export KUBECONFIG=/home/ubuntu/.kube/config
-                            sleep 30
+
+                            echo "Waiting for k3s API server to be ready..."
+                            for i in $(seq 1 24); do
+                                kubectl get nodes > /dev/null 2>&1 && echo "API server ready!" && break
+                                echo "Attempt $i/24 - not ready yet, waiting 10s..."
+                                sleep 10
+                            done
+
                             kubectl apply --validate=false -f /tmp/deployment-actual.yaml
                             kubectl apply --validate=false -f /tmp/service.yaml
-                            kubectl rollout status deployment/task-manager-app --timeout=120s
-                        "
+                            kubectl rollout status deployment/task-manager-app --timeout=180s
+                        '
                     '''
                 }
             }
