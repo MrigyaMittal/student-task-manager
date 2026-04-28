@@ -44,7 +44,13 @@ pipeline {
             steps {
                 echo "Building Docker image: ${FULL_IMAGE}"
                 sh '''
-                    docker build -t $FULL_IMAGE .
+                    docker buildx create --use --name amd64-builder || true
+                    docker buildx build \
+                        --platform linux/amd64 \
+                        --provenance=false \
+                        --load \
+                        -t $FULL_IMAGE \
+                        .
                     docker tag $FULL_IMAGE $ECR_REGISTRY/$ECR_REPO:latest
                 '''
             }
