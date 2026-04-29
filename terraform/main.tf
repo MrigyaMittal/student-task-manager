@@ -5,6 +5,12 @@ terraform {
       version = "~> 5.0"
     }
   }
+
+  backend "s3" {
+    bucket = "task-manager-tfstate-mrigya"
+    key    = "task-manager/terraform.tfstate"
+    region = "ap-southeast-2"
+  }
 }
 
 provider "aws" {
@@ -114,10 +120,16 @@ resource "aws_instance" "app_server" {
   tags = { Name = "${var.project_name}-server" }
 }
 
+resource "aws_eip" "app_ip" {
+  instance = aws_instance.app_server.id
+  domain   = "vpc"
+  tags     = { Name = "${var.project_name}-eip" }
+}
+
 output "server_public_ip" {
-  value = aws_instance.app_server.public_ip
+  value = aws_eip.app_ip.public_ip
 }
 
 output "app_url" {
-  value = "http://${aws_instance.app_server.public_ip}:30080"
+  value = "http://${aws_eip.app_ip.public_ip}:30080"
 }
