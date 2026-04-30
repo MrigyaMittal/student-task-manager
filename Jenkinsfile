@@ -31,14 +31,13 @@ pipeline {
             steps {
                 echo "Running tests"
                 sh '''
-                    echo "=== app.py last 10 lines ==="
-                    tail -10 app/app.py
                     find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
                     find . -name "*.pyc" -delete 2>/dev/null || true
                     python3 -m venv /tmp/test-venv
                     . /tmp/test-venv/bin/activate
                     pip install -r app/requirements.txt pytest
-                    python3 -m pytest app/test_app.py -v
+                    cd app
+                    python3 -m pytest test_app.py -v
                     deactivate
                 '''
             }
