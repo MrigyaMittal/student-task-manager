@@ -31,6 +31,8 @@ pipeline {
             steps {
                 echo "Running tests"
                 sh '''
+                    echo "=== app.py last 10 lines ==="
+                    tail -10 app/app.py
                     find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
                     find . -name "*.pyc" -delete 2>/dev/null || true
                     python3 -m venv /tmp/test-venv
