@@ -3,7 +3,7 @@ import sqlite3
 import os
 
 app = Flask(__name__)
-DB = "/data/tasks.db"
+DB = os.environ.get("DB_PATH", "/data/tasks.db")
 
 def get_db():
     conn = sqlite3.connect(DB)
@@ -62,7 +62,8 @@ def toggle_done(task_id):
 def health():
     return jsonify({"status": "ok"})
 
-init_db()
+if not app.config.get('TESTING'):
+    init_db()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
