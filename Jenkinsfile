@@ -31,6 +31,8 @@ pipeline {
             steps {
                 echo "Running tests"
                 sh '''
+                    find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+                    find . -name "*.pyc" -delete 2>/dev/null || true
                     python3 -m venv /tmp/test-venv
                     . /tmp/test-venv/bin/activate
                     pip install -r app/requirements.txt pytest
