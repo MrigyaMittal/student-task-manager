@@ -2,19 +2,19 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION      = 'ap-southeast-2'
-        AWS_ACCOUNT_ID          = credentials('aws-account-id')
-        AWS_ACCESS_KEY_ID       = credentials('aws-access-key-id')
-        AWS_SECRET_ACCESS_KEY   = credentials('aws-secret-key')
-        ECR_REGISTRY            = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
-        ECR_REPO                = 'task-manager'
-        IMAGE_TAG               = "build-${BUILD_NUMBER}"
-        FULL_IMAGE              = "${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
-        SSH_PUBLIC_KEY          = credentials('ssh-public-key-text')
+        AWS_DEFAULT_REGION    = 'ap-southeast-2'
+        AWS_ACCOUNT_ID        = credentials('aws-account-id')
+        AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
+        ECR_REGISTRY          = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+        ECR_REPO              = 'task-manager'
+        IMAGE_TAG             = "build-${BUILD_NUMBER}"
+        FULL_IMAGE            = "${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
+        SERVER_IP             = '15.134.98.247'
     }
 
     options {
-        timeout(time: 45, unit: 'MINUTES')
+        timeout(time: 20, unit: 'MINUTES')
         timestamps()
     }
 
@@ -62,51 +62,9 @@ pipeline {
                 sh '''
                     aws ecr get-login-password --region $AWS_DEFAULT_REGION | \
                     docker login --username AWS --password-stdin $ECR_REGISTRY
-
-                    aws ecr describe-repositories --repository-names $ECR_REPO \
-                        --region $AWS_DEFAULT_REGION || \
-                    aws ecr create-repository --repository-name $ECR_REPO \
-                        --region $AWS_DEFAULT_REGION
-
                     docker push $FULL_IMAGE
                     docker push $ECR_REGISTRY/$ECR_REPO:latest
                 '''
-            }
-        }
-
-        stage('Terraform') {
-            steps {
-                echo "Provisioning AWS infrastructure"
-                dir('terraform') {
-                    sh '''
-                        terraform init
-                        terraform plan -var="ssh_public_key=$SSH_PUBLIC_KEY" -out=tfplan
-                        terraform apply -auto-approve tfplan
-                        terraform output -raw server_public_ip > /tmp/server_ip.txt
-                        echo "Server IP: $(cat /tmp/server_ip.txt)"
-                    '''
-                }
-            }
-        }
-
-        stage('Ansible Configure') {
-            steps {
-                echo "Configuring server with Ansible"
-                sshagent(['ssh-private-key']) {
-                    sh '''
-                        SERVER_IP=$(cat /tmp/server_ip.txt)
-                        echo "Configuring: $SERVER_IP"
-                        sleep 30
-
-                        sed "s/SERVER_IP_PLACEHOLDER/$SERVER_IP/" \
-                            ansible/inventory.ini > /tmp/inventory.ini
-
-                        ansible-playbook \
-                            -i /tmp/inventory.ini \
-                            -v \
-                            ansible/playbook.yml
-                    '''
-                }
             }
         }
 
@@ -115,62 +73,32 @@ pipeline {
                 echo "Deploying to Kubernetes"
                 sshagent(['ssh-private-key']) {
                     sh '''
-                        SERVER_IP=$(cat /tmp/server_ip.txt)
-
-                        sed "s|IMAGE_PLACEHOLDER|$FULL_IMAGE|g" \
-                            k8s/deployment.yaml > /tmp/deployment-actual.yaml
-
-                        scp -o StrictHostKeyChecking=no \
-                            /tmp/deployment-actual.yaml \
-                            k8s/service.yaml \
-                            ubuntu@$SERVER_IP:/tmp/
-
                         ECR_PASSWORD=$(aws ecr get-login-password --region $AWS_DEFAULT_REGION)
 
-                        ssh -o StrictHostKeyChecking=no \
-                            ubuntu@$SERVER_IP \
+                        ssh -o StrictHostKeyChecking=no ubuntu@$SERVER_IP \
                             ECR_REGISTRY="$ECR_REGISTRY" \
                             ECR_PASSWORD="$ECR_PASSWORD" \
+                            FULL_IMAGE="$FULL_IMAGE" \
                             bash -s << 'ENDSSH'
 
                             export KUBECONFIG=/home/ubuntu/.kube/config
 
-                            echo "Waiting for k3s API server to be ready..."
-                            for i in $(seq 1 24); do
-                                kubectl get nodes > /dev/null 2>&1 && echo "API server ready!" && break
-                                echo "Attempt $i/24 - not ready yet, waiting 10s..."
-                                sleep 10
-                            done
-
-                            echo "Creating ECR pull secret..."
+                            echo "Refreshing ECR pull secret..."
                             kubectl delete secret ecr-secret --ignore-not-found
                             kubectl create secret docker-registry ecr-secret \
                                 --docker-server=$ECR_REGISTRY \
                                 --docker-username=AWS \
                                 --docker-password=$ECR_PASSWORD
 
-                            echo "Applying manifests..."
-                            kubectl apply --validate=false -f /tmp/deployment-actual.yaml
-                            kubectl apply --validate=false -f /tmp/service.yaml || true
+                            echo "Updating image to $FULL_IMAGE..."
+                            kubectl set image deployment/task-manager-app \
+                                task-manager=$FULL_IMAGE
 
-                            echo "Waiting 60s for pod to initialize..."
-                            sleep 60
+                            echo "Waiting for rollout..."
+                            kubectl rollout status deployment/task-manager-app --timeout=180s
 
                             echo "=== POD STATUS ==="
                             kubectl get pods -o wide
-
-                            echo "=== POD DESCRIPTION ==="
-                            kubectl describe pods -l app=task-manager
-
-                            echo "=== POD LOGS ==="
-                            kubectl logs -l app=task-manager --tail=50 || true
-
-                            echo "=== EVENTS ==="
-                            kubectl get events --sort-by=.lastTimestamp | tail -20
-
-                            echo "Waiting for rollout..."
-                            kubectl rollout status deployment/task-manager-app --timeout=300s
-
 ENDSSH
                     '''
                 }
@@ -181,8 +109,7 @@ ENDSSH
             steps {
                 echo "Verifying deployment"
                 sh '''
-                    SERVER_IP=$(cat /tmp/server_ip.txt)
-                    sleep 20
+                    sleep 10
                     curl -f --retry 5 --retry-delay 5 \
                         http://$SERVER_IP:30080/health
                     echo "APP IS LIVE at http://$SERVER_IP:30080"
