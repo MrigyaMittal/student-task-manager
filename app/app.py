@@ -3,7 +3,7 @@ import sqlite3
 import os
 
 app = Flask(__name__)
-DB = "tasks.db"
+DB = "/data/tasks.db"
 
 def get_db():
     conn = sqlite3.connect(DB)
