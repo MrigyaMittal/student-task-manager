@@ -18,9 +18,15 @@ def init_db():
                 title TEXT NOT NULL,
                 subject TEXT NOT NULL,
                 due_date TEXT,
-                done INTEGER DEFAULT 0
+                done INTEGER DEFAULT 0,
+                priority TEXT DEFAULT 'medium'
             )
         """)
+        # If the table already exists without the priority column, add it
+        try:
+            conn.execute("ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'medium'")
+        except Exception:
+            pass  # Column already exists, that's fine
         conn.commit()
 
 @app.route("/")
@@ -36,10 +42,13 @@ def get_tasks():
 @app.route("/api/tasks", methods=["POST"])
 def add_task():
     data = request.json
+    priority = data.get("priority", "medium")
+    if priority not in ("high", "medium", "low"):
+        priority = "medium"
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO tasks (title, subject, due_date) VALUES (?, ?, ?)",
-            (data["title"], data["subject"], data.get("due_date", ""))
+            "INSERT INTO tasks (title, subject, due_date, priority) VALUES (?, ?, ?, ?)",
+            (data["title"], data["subject"], data.get("due_date", ""), priority)
         )
         conn.commit()
     return jsonify({"message": "Task added"}), 201
